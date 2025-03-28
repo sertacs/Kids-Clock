@@ -1,6 +1,6 @@
 # Kids Clock
 
-An interactive analog clock application designed specifically for children to learn the logic of time before mastering how to read an analog clock.
+An interactive analog clock web application designed specifically for children to learn the logic of time and daily routines.
 
 ## Overview
 
