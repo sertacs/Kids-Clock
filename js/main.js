@@ -39,6 +39,7 @@ let markerLayoutFrame = null;
 let markerLayoutTimeouts = [];
 let clockResizeObserver = null;
 let ghostIcon = null;
+let lastProgressSignature = '';
 
 function getActivityAsset(activity) {
     return activities[activity]?.src || '';
@@ -51,6 +52,99 @@ function applyActivityToImage(img, activity) {
     img.src = asset;
     img.alt = activities[activity]?.label || activity;
     img.dataset.activity = activity;
+}
+
+function initProgressRings() {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const radius = 31;
+    const circumference = 2 * Math.PI * radius;
+
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        if (zone.querySelector('.progress-ring')) return;
+
+        const ring = document.createElementNS(namespace, 'svg');
+        ring.setAttribute('viewBox', '0 0 72 72');
+        ring.setAttribute('aria-hidden', 'true');
+        ring.classList.add('progress-ring');
+
+        const track = document.createElementNS(namespace, 'circle');
+        track.setAttribute('cx', '36');
+        track.setAttribute('cy', '36');
+        track.setAttribute('r', String(radius));
+        track.classList.add('progress-track');
+
+        const value = document.createElementNS(namespace, 'circle');
+        value.setAttribute('cx', '36');
+        value.setAttribute('cy', '36');
+        value.setAttribute('r', String(radius));
+        value.classList.add('progress-value');
+        value.dataset.circumference = String(circumference);
+
+        ring.appendChild(track);
+        ring.appendChild(value);
+
+        zone.appendChild(ring);
+    });
+}
+
+function setRingProgress(zone, filledSegments, state) {
+    if (!zone) return;
+
+    zone.dataset.progressState = state;
+    zone.classList.add(`progress-${state}`);
+    const ring = zone.querySelector('.progress-ring');
+    const value = zone.querySelector('.progress-value');
+
+    if (ring && value) {
+        ring.style.display = 'block';
+        const progress = Math.max(0, Math.min(60, filledSegments)) / 60;
+        const circumference = Number(value.dataset.circumference || 0);
+        const activeStroke = state === 'current' ? '#ff8a5b' : '#7c8cff';
+        value.style.stroke = activeStroke;
+        value.style.strokeDasharray = `${progress * circumference} ${circumference}`;
+    }
+}
+
+function clearHourProgress() {
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.classList.remove('progress-current', 'progress-next');
+        delete zone.dataset.progressState;
+        const ring = zone.querySelector('.progress-ring');
+        if (ring) {
+            ring.style.display = 'none';
+        }
+        const value = zone.querySelector('.progress-value');
+        if (value) {
+            value.style.strokeDasharray = '0 999';
+        }
+    });
+    lastProgressSignature = '';
+}
+
+function updateHourProgress(now) {
+    if (editingPeriod) {
+        clearHourProgress();
+        return;
+    }
+
+    const currentHour = (now.getHours() % 12) || 12;
+    const nextHour = currentHour === 12 ? 1 : currentHour + 1;
+    const minutes = now.getMinutes();
+    const currentFilled = 60 - minutes;
+    const nextFilled = minutes;
+    const signature = `${currentHour}-${nextHour}-${currentFilled}-${nextFilled}`;
+
+    if (signature === lastProgressSignature) return;
+
+    clearHourProgress();
+
+    const currentZone = document.querySelector(`.marker[data-hour="${currentHour}"] .drop-zone`);
+    const nextZone = document.querySelector(`.marker[data-hour="${nextHour}"] .drop-zone`);
+
+    setRingProgress(currentZone, currentFilled, 'current');
+    setRingProgress(nextZone, nextFilled, 'next');
+
+    lastProgressSignature = signature;
 }
 
 // Clock functionality
@@ -98,6 +192,8 @@ function updateClock() {
     if (hourHand) hourHand.style.transform = `rotate(${hourAngle}deg) translateZ(0)`;
     if (minuteHand) minuteHand.style.transform = `rotate(${minuteAngle}deg) translateZ(0)`;
     if (secondHand) secondHand.style.transform = `rotate(${secondAngle}deg) translateZ(0)`;
+
+    updateHourProgress(now);
 
     // Request next frame for smooth animation
     requestAnimationFrame(updateClock);
@@ -373,7 +469,9 @@ function loadActivities() {
         dropZone.appendChild(img);
     });
     
+    initProgressRings();
     makeDropZoneIconsDraggable();
+    updateHourProgress(new Date());
 }
 
 function clearScheduledClockLayout() {

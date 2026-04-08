@@ -93,6 +93,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    overflow: visible;
 }
 
 .drop-zone {
@@ -107,6 +108,43 @@ body {
     transition: all 0.2s ease;
     cursor: grab;
     background: rgba(255, 255, 255, 0.5);
+    overflow: visible;
+}
+
+.drop-zone[data-progress-state="current"],
+.drop-zone[data-progress-state="next"] {
+    border-color: transparent;
+}
+
+.progress-ring {
+    position: absolute;
+    inset: -8px;
+    width: calc(100% + 16px);
+    height: calc(100% + 16px);
+    pointer-events: none;
+    display: none;
+}
+
+.progress-track,
+.progress-value {
+    fill: none;
+    stroke-linecap: round;
+}
+
+.progress-track {
+    stroke: rgba(0, 0, 0, 0.08);
+    stroke-width: 3;
+}
+
+.progress-value {
+    stroke-width: 3.8;
+    stroke-dasharray: 0 999;
+    transform: rotate(-90deg);
+    transform-origin: 36px 36px;
+}
+
+body[data-editing="true"] .progress-ring {
+    display: none !important;
 }
 
 .drop-zone:hover {
@@ -135,6 +173,8 @@ body {
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
+    position: relative;
+    z-index: 1;
 }
 
 .drop-zone img:active {
