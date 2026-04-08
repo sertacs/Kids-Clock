@@ -197,20 +197,19 @@ body {
     position: relative;
     display: flex;
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: var(--panel-bg);
-    padding: 14px;
+    padding: 10px;
     border-radius: 28px;
     border: 1px solid var(--panel-border);
     box-shadow: var(--panel-shadow);
     backdrop-filter: blur(10px);
     transition: opacity 0.3s ease, visibility 0.3s ease, max-height 0.3s ease, padding 0.3s ease, border-width 0.3s ease;
-    width: fit-content;
-    max-width: min(100%, 620px);
-    overflow-x: auto;
-    overflow-y: hidden;
+    width: min(100%, 640px);
+    max-width: min(100%, 640px);
+    overflow: hidden;
 }
 
 body:not([data-editing="true"]) .icon-toolbar {
@@ -225,18 +224,18 @@ body:not([data-editing="true"]) .icon-toolbar {
 }
 
 body[data-editing="true"] .icon-toolbar {
-    max-height: 150px;
+    max-height: 112px;
 }
 
 .icon-btn {
     flex: 0 0 auto;
-    width: 82px;
-    min-height: 92px;
+    width: 68px;
+    min-height: 78px;
     border: 1px solid rgba(59, 75, 111, 0.08);
     background: var(--surface-soft);
-    padding: 8px;
+    padding: 6px 4px;
     cursor: grab;
-    border-radius: 22px;
+    border-radius: 18px;
     transition: all 0.2s ease;
 }
 
@@ -247,8 +246,8 @@ body[data-editing="true"] .icon-toolbar {
 }
 
 .icon-btn img {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     object-fit: contain;
     border-radius: 16px;
 }
@@ -279,8 +278,8 @@ body[data-editing="true"] .icon-toolbar {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 6px;
+    gap: 4px;
+    padding: 6px 4px;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
@@ -292,16 +291,16 @@ body[data-editing="true"] .icon-toolbar {
 }
 
 .icon-btn img {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     object-fit: contain;
     pointer-events: none;
 }
 
 .icon-btn span {
-    font-size: 0.7rem;
+    font-size: 0.62rem;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.05;
     color: var(--ink-soft);
     text-align: center;
     pointer-events: none;
@@ -485,13 +484,13 @@ body[data-editing="true"] .icon-toolbar {
     .icon-toolbar {
         width: 100%;
         max-width: 100%;
-        gap: 8px;
-        padding: 8px;
+        gap: 6px;
+        padding: 8px 6px;
     }
 
     .icon-btn {
-        width: 72px;
-        min-height: 82px;
+        width: 60px;
+        min-height: 70px;
     }
 
     .period-btn {
