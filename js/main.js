@@ -4,30 +4,50 @@ let editingPeriod = null; // Period being edited
 
 const activities = {
     sleep: {
-        icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h4.5v-6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v6H20V7.577l-7.5-4.33z"/></svg>',
-        label: 'sleep'
+        label: 'uyku',
+        src: 'images/sleep.png'
     },
     eat: {
-        icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 3V11H3V13H11V21H13V13H21V11H13V3H11Z"/></svg>',
-        label: 'eat'
+        label: 'yemek',
+        src: 'images/eat.png'
     },
     brush: {
-        icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.71 5.29l-1-1a1 1 0 0 0-1.42 0l-7 7a1 1 0 0 0 1.42 1.42l7-7a1 1 0 0 0 0-1.42zM3 18h18v2H3z"/></svg>',
-        label: 'brush teeth'
+        label: 'dis fircalama',
+        src: 'images/brush.png'
     },
     play: {
-        icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
-        label: 'play'
+        label: 'oyun',
+        src: 'images/play.png'
     },
-    school: {
-        icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>',
-        label: 'school'
+    cartoon: {
+        label: 'cizgi film',
+        src: 'images/cartoon.png'
+    },
+    sport: {
+        label: 'spor',
+        src: 'images/sport.png'
     }
 };
 
 let selectedActivity = null;
 let draggedActivity = null;
+let markerLayoutFrame = null;
+let markerLayoutTimeouts = [];
+let clockResizeObserver = null;
 let ghostIcon = null;
+
+function getActivityAsset(activity) {
+    return activities[activity]?.src || '';
+}
+
+function applyActivityToImage(img, activity) {
+    const asset = getActivityAsset(activity);
+    if (!asset) return;
+
+    img.src = asset;
+    img.alt = activities[activity]?.label || activity;
+    img.dataset.activity = activity;
+}
 
 // Clock functionality
 function updateClock() {
@@ -91,7 +111,7 @@ function updateTimeGradient(hour) {
 
 // Initialize everything
 function init() {
-    positionClockMarkers();
+    scheduleClockLayout();
     initPeriodSwitch();
     loadActivities();
     initDragAndDrop();
@@ -106,8 +126,21 @@ function init() {
     // Add periodic checks for AM/PM switching
     setInterval(checkAndUpdatePeriod, 1000);
     
-    // Reposition markers on window resize
-    window.addEventListener('resize', positionClockMarkers);
+    // Reposition markers when viewport or container size changes
+    window.addEventListener('resize', scheduleClockLayout);
+    window.addEventListener('orientationchange', scheduleClockLayout);
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleClockLayout);
+    }
+
+    const clockContainer = document.querySelector('.clock-container');
+    if (clockContainer && 'ResizeObserver' in window) {
+        clockResizeObserver = new ResizeObserver(() => {
+            scheduleClockLayout();
+        });
+        clockResizeObserver.observe(clockContainer);
+    }
 }
 
 // Make icons in drop zones draggable
@@ -210,9 +243,7 @@ function makeDropZoneIconsDraggable() {
                             const activity = img.dataset.activity;
                             const existingImg = dropZone.querySelector('img');
                             if (existingImg) {
-                                existingImg.src = `images/${activity}.png`;
-                                existingImg.alt = activity;
-                                existingImg.dataset.activity = activity;
+                                applyActivityToImage(existingImg, activity);
                                 zone.removeChild(img);
                             } else {
                                 dropZone.appendChild(img);
@@ -333,9 +364,7 @@ function loadActivities() {
         if (!dropZone) return;
         
         const img = document.createElement('img');
-        img.src = `images/${activity}.png`;
-        img.alt = activity;
-        img.dataset.activity = activity;
+        applyActivityToImage(img, activity);
         img.draggable = true;
         dropZone.appendChild(img);
     });
@@ -343,40 +372,58 @@ function loadActivities() {
     makeDropZoneIconsDraggable();
 }
 
+function clearScheduledClockLayout() {
+    markerLayoutTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    markerLayoutTimeouts = [];
+
+    if (markerLayoutFrame !== null) {
+        cancelAnimationFrame(markerLayoutFrame);
+        markerLayoutFrame = null;
+    }
+}
+
+function scheduleClockLayout() {
+    clearScheduledClockLayout();
+
+    const delays = [0, 120, 300];
+    delays.forEach(delay => {
+        const timeoutId = setTimeout(() => {
+            markerLayoutFrame = requestAnimationFrame(() => {
+                positionClockMarkers();
+            });
+        }, delay);
+
+        markerLayoutTimeouts.push(timeoutId);
+    });
+}
+
 // Position clock markers
 function positionClockMarkers() {
     const markers = document.querySelectorAll('.marker');
     const clockContainer = document.querySelector('.clock-container');
-    
-    // Wait for the clock container to be rendered with its final size
-    setTimeout(() => {
-        if (!clockContainer) return;
-        
-        // Get the actual size of the clock container
-        const containerWidth = clockContainer.offsetWidth;
-        const containerHeight = clockContainer.offsetHeight;
-        
-        // Calculate the radius to position markers exactly 32px from the edge
-        // Subtract marker size (60px) / 2 to account for the marker's center point
-        const edgeDistance = 32;
-        const markerRadius = Math.min(containerWidth, containerHeight) / 2 - edgeDistance - 30;
-        
-        markers.forEach(marker => {
-            const hour = parseInt(marker.dataset.hour);
-            // Adjust angle calculation to start from 12 o'clock
-            const angle = ((hour % 12) / 12) * 2 * Math.PI - Math.PI / 2;
-            
-            // Calculate position in pixels from the center
-            const centerX = containerWidth / 2;
-            const centerY = containerHeight / 2;
-            const x = centerX + markerRadius * Math.cos(angle);
-            const y = centerY + markerRadius * Math.sin(angle);
-            
-            // Position marker absolutely in pixels instead of percentages
-            marker.style.left = `${x}px`;
-            marker.style.top = `${y}px`;
-        });
-    }, 0);
+
+    if (!clockContainer || markers.length === 0) return;
+
+    const containerWidth = clockContainer.offsetWidth;
+    const containerHeight = clockContainer.offsetHeight;
+    const sampleMarker = markers[0];
+    const markerSize = sampleMarker ? sampleMarker.offsetWidth || 60 : 60;
+
+    // Keep markers inside the clock edge across viewport changes.
+    const edgeDistance = Math.max(18, Math.min(containerWidth, containerHeight) * 0.05);
+    const markerRadius = Math.min(containerWidth, containerHeight) / 2 - edgeDistance - markerSize / 2;
+
+    markers.forEach(marker => {
+        const hour = parseInt(marker.dataset.hour, 10);
+        const angle = ((hour % 12) / 12) * 2 * Math.PI - Math.PI / 2;
+        const centerX = containerWidth / 2;
+        const centerY = containerHeight / 2;
+        const x = centerX + markerRadius * Math.cos(angle);
+        const y = centerY + markerRadius * Math.sin(angle);
+
+        marker.style.left = `${x}px`;
+        marker.style.top = `${y}px`;
+    });
 }
 
 // Drag and Drop Functionality
@@ -398,7 +445,7 @@ function initDragAndDrop() {
             btn.classList.add('dragging');
             
             const dragImage = new Image();
-            dragImage.src = `images/${activity}.png`;
+            dragImage.src = getActivityAsset(activity);
             e.dataTransfer.setDragImage(dragImage, 20, 20);
         });
         
@@ -476,15 +523,11 @@ function initDragAndDrop() {
                         if (existingImg.dataset.activity === activity) {
                             zone.removeChild(existingImg);
                         } else {
-                            existingImg.src = `images/${activity}.png`;
-                            existingImg.alt = activity;
-                            existingImg.dataset.activity = activity;
+                            applyActivityToImage(existingImg, activity);
                         }
                     } else {
                         const img = document.createElement('img');
-                        img.src = `images/${activity}.png`;
-                        img.alt = activity;
-                        img.dataset.activity = activity;
+                        applyActivityToImage(img, activity);
                         zone.appendChild(img);
                     }
                     saveActivities();
@@ -524,15 +567,11 @@ function initDragAndDrop() {
                 if (existingImg.dataset.activity === activity && source === 'toolbar') {
                     zone.removeChild(existingImg);
                 } else {
-                    existingImg.src = `images/${activity}.png`;
-                    existingImg.alt = activity;
-                    existingImg.dataset.activity = activity;
+                    applyActivityToImage(existingImg, activity);
                 }
             } else {
                 const img = document.createElement('img');
-                img.src = `images/${activity}.png`;
-                img.alt = activity;
-                img.dataset.activity = activity;
+                applyActivityToImage(img, activity);
                 zone.appendChild(img);
             }
             
