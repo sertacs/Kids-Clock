@@ -207,7 +207,7 @@ body {
     box-shadow: var(--panel-shadow);
     backdrop-filter: blur(10px);
     transition: opacity 0.3s ease, visibility 0.3s ease, max-height 0.3s ease, padding 0.3s ease, border-width 0.3s ease;
-    width: min(100%, 620px);
+    width: fit-content;
     max-width: min(100%, 620px);
     overflow-x: auto;
     overflow-y: hidden;
@@ -225,14 +225,13 @@ body:not([data-editing="true"]) .icon-toolbar {
 }
 
 body[data-editing="true"] .icon-toolbar {
-    max-height: 120px;
+    max-height: 150px;
 }
 
 .icon-btn {
     flex: 0 0 auto;
-    width: 72px;
-    height: 72px;
-    min-height: 72px;
+    width: 82px;
+    min-height: 92px;
     border: 1px solid rgba(59, 75, 111, 0.08);
     background: var(--surface-soft);
     padding: 8px;
@@ -277,9 +276,11 @@ body[data-editing="true"] .icon-toolbar {
 
 .icon-btn {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 8px;
+    gap: 6px;
+    padding: 8px 6px;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
@@ -294,6 +295,15 @@ body[data-editing="true"] .icon-toolbar {
     width: 48px;
     height: 48px;
     object-fit: contain;
+    pointer-events: none;
+}
+
+.icon-btn span {
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--ink-soft);
+    text-align: center;
     pointer-events: none;
 }
 
@@ -480,9 +490,8 @@ body[data-editing="true"] .icon-toolbar {
     }
 
     .icon-btn {
-        width: 64px;
-        height: 64px;
-        min-height: 64px;
+        width: 72px;
+        min-height: 82px;
     }
 
     .period-btn {

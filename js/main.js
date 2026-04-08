@@ -4,28 +4,32 @@ let editingPeriod = null; // Period being edited
 
 const activities = {
     sleep: {
-        label: 'uyku',
+        label: 'sleep',
         src: 'images/sleep.png'
     },
     eat: {
-        label: 'yemek',
+        label: 'meal',
         src: 'images/eat.png'
     },
     brush: {
-        label: 'dis fircalama',
+        label: 'brush',
         src: 'images/brush.png'
     },
     play: {
-        label: 'oyun',
+        label: 'play',
         src: 'images/play.png'
     },
     cartoon: {
-        label: 'cizgi film',
+        label: 'cartoon',
         src: 'images/cartoon.png'
     },
     sport: {
-        label: 'spor',
+        label: 'sport',
         src: 'images/sport.png'
+    },
+    homework: {
+        label: 'homework',
+        src: 'images/homework.png'
     }
 };
 
