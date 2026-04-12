@@ -16,62 +16,160 @@
 </head>
 <body>
     <main class="app-shell">
-        <div class="period-switch">
-        <button class="period-btn am active" data-period="am">
-            <span class="period-label">AM</span>
-            <div class="editing-indicator">
-                <svg class="edit-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                </svg>
-            </div>
+        <button class="planner-handle" id="plannerHandle" type="button" aria-expanded="false" aria-controls="plannerPanel">
+            Planning tools
         </button>
-        <button class="period-btn pm" data-period="pm">
-            <span class="period-label">PM</span>
-            <div class="editing-indicator">
-                <svg class="edit-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                </svg>
-            </div>
-        </button>
-        </div>
+
+        <aside class="planner-panel" id="plannerPanel" aria-label="Planning tools" hidden>
+            <section class="control-panel mode-panel">
+                <div class="panel-heading">
+                    <p class="panel-kicker">1. Choose what to view</p>
+                    <p class="panel-title">Clock view</p>
+                </div>
+                <div class="period-switch" role="tablist" aria-label="Time of day">
+                    <button class="period-btn am active" data-period="am" type="button" aria-pressed="true">
+                        <span class="period-label">AM</span>
+                    </button>
+                    <button class="period-btn pm" data-period="pm" type="button" aria-pressed="false">
+                        <span class="period-label">PM</span>
+                    </button>
+                </div>
+                <div class="schedule-switch" aria-label="Schedule type">
+                    <button class="schedule-btn active" data-schedule="weekday" type="button">Weekday</button>
+                    <button class="schedule-btn" data-schedule="weekend" type="button">Weekend</button>
+                </div>
+                <button class="edit-toggle-btn" id="editToggleBtn" type="button" aria-pressed="false">
+                    <span class="edit-toggle-label">Open planning mode</span>
+                    <span class="edit-toggle-meta">For caregivers</span>
+                </button>
+            </section>
+
+            <section class="control-panel helper-panel" aria-label="Guidance">
+                <div class="panel-heading">
+                    <p class="panel-kicker">2. Follow the routine</p>
+                    <p class="panel-title">What to do next</p>
+                </div>
+                <p class="helper-copy" id="helperCopy">Watch the live clock and talk about which activity belongs to this part of the day.</p>
+                <div class="selection-chip" id="selectionChip" hidden>
+                    Selected activity: <strong id="selectionLabel">None</strong>
+                </div>
+                <div class="action-row">
+                    <button class="secondary-action" id="clearPlanBtn" type="button" hidden>Clear this plan</button>
+                </div>
+            </section>
+
+            <section class="icon-toolbar" aria-label="Activity tools" hidden>
+                <div class="toolbar-copy">
+                    <p class="panel-kicker">3. Build the routine</p>
+                    <p class="panel-title">Planning tray</p>
+                    <p class="toolbar-helper">Choose an activity, then place it on the clock. Dragging still works, and keyboard users can press Enter on a time slot.</p>
+                </div>
+                <div class="toolbar-grid">
+                    <button class="icon-btn" draggable="true" data-activity="sleep" type="button">
+                        <img src="images/sleep.png" alt="Sleep">
+                        <span>Sleep</span>
+                    </button>
+                    <button class="icon-btn" draggable="true" data-activity="eat" type="button">
+                        <img src="images/eat.png" alt="Meal">
+                        <span>Meal</span>
+                    </button>
+                    <button class="icon-btn" draggable="true" data-activity="brush" type="button">
+                        <img src="images/brush.png" alt="Brush">
+                        <span>Brush</span>
+                    </button>
+                    <button class="icon-btn" draggable="true" data-activity="play" type="button">
+                        <img src="images/play.png" alt="Play">
+                        <span>Play</span>
+                    </button>
+                    <button class="icon-btn" draggable="true" data-activity="cartoon" type="button">
+                        <img src="images/cartoon.png" alt="Cartoon">
+                        <span>Cartoon</span>
+                    </button>
+                    <button class="icon-btn" draggable="true" data-activity="sport" type="button">
+                        <img src="images/sport.png" alt="Sport">
+                        <span>Sport</span>
+                    </button>
+                    <button class="icon-btn" draggable="true" data-activity="homework" type="button">
+                        <img src="images/homework.png" alt="Homework">
+                        <span>Homework</span>
+                    </button>
+                </div>
+            </section>
+        </aside>
 
         <div class="clock-container">
         <!-- Clock Markers with Drop Zones -->
         <div class="clock-markers">
-            <div class="marker marker-12" data-hour="12">
+            <div class="marker" data-hour="12">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-1" data-hour="1">
+            <div class="marker marker-half" data-hour="12.5">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-2" data-hour="2">
+            <div class="marker" data-hour="1">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-3" data-hour="3">
+            <div class="marker marker-half" data-hour="1.5">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-4" data-hour="4">
+            <div class="marker" data-hour="2">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-5" data-hour="5">
+            <div class="marker marker-half" data-hour="2.5">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-6" data-hour="6">
+            <div class="marker" data-hour="3">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-7" data-hour="7">
+            <div class="marker marker-half" data-hour="3.5">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-8" data-hour="8">
+            <div class="marker" data-hour="4">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-9" data-hour="9">
+            <div class="marker marker-half" data-hour="4.5">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-10" data-hour="10">
+            <div class="marker" data-hour="5">
                 <div class="drop-zone"></div>
             </div>
-            <div class="marker marker-11" data-hour="11">
+            <div class="marker marker-half" data-hour="5.5">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker" data-hour="6">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker marker-half" data-hour="6.5">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker" data-hour="7">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker marker-half" data-hour="7.5">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker" data-hour="8">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker marker-half" data-hour="8.5">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker" data-hour="9">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker marker-half" data-hour="9.5">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker" data-hour="10">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker marker-half" data-hour="10.5">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker" data-hour="11">
+                <div class="drop-zone"></div>
+            </div>
+            <div class="marker marker-half" data-hour="11.5">
                 <div class="drop-zone"></div>
             </div>
         </div>
@@ -83,40 +181,16 @@
             <div class="hand-second"></div>
             <div class="clock-center"></div>
         </div>
+        <div class="digital-clock">
+            <div class="digital-time">12:00 AM</div>
+            <div class="digital-plan">Weekday Plan</div>
+            <div class="digital-mode" id="modeTitle">View mode</div>
         </div>
-
-        <div class="icon-toolbar">
-        <button class="icon-btn" draggable="true" data-activity="sleep">
-            <img src="images/sleep.png" alt="Sleep">
-            <span>Sleep</span>
-        </button>
-        <button class="icon-btn" draggable="true" data-activity="eat">
-            <img src="images/eat.png" alt="Meal">
-            <span>Meal</span>
-        </button>
-        <button class="icon-btn" draggable="true" data-activity="brush">
-            <img src="images/brush.png" alt="Brush">
-            <span>Brush</span>
-        </button>
-        <button class="icon-btn" draggable="true" data-activity="play">
-            <img src="images/play.png" alt="Play">
-            <span>Play</span>
-        </button>
-        <button class="icon-btn" draggable="true" data-activity="cartoon">
-            <img src="images/cartoon.png" alt="Cartoon">
-            <span>Cartoon</span>
-        </button>
-        <button class="icon-btn" draggable="true" data-activity="sport">
-            <img src="images/sport.png" alt="Sport">
-            <span>Sport</span>
-        </button>
-        <button class="icon-btn" draggable="true" data-activity="homework">
-            <img src="images/homework.png" alt="Homework">
-            <span>Homework</span>
-        </button>
         </div>
 
     </main>
+    <div class="toast" id="liveToast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div class="sr-only" id="liveRegion" aria-live="polite" aria-atomic="true"></div>
     <script src="js/main.js"></script>
 </body>
 </html>

@@ -4,31 +4,31 @@ let editingPeriod = null; // Period being edited
 
 const activities = {
     sleep: {
-        label: 'sleep',
+        label: 'Sleep',
         src: 'images/sleep.png'
     },
     eat: {
-        label: 'meal',
+        label: 'Meal',
         src: 'images/eat.png'
     },
     brush: {
-        label: 'brush',
+        label: 'Brush',
         src: 'images/brush.png'
     },
     play: {
-        label: 'play',
+        label: 'Play',
         src: 'images/play.png'
     },
     cartoon: {
-        label: 'cartoon',
+        label: 'Cartoon',
         src: 'images/cartoon.png'
     },
     sport: {
-        label: 'sport',
+        label: 'Sport',
         src: 'images/sport.png'
     },
     homework: {
-        label: 'homework',
+        label: 'Homework',
         src: 'images/homework.png'
     }
 };
@@ -40,9 +40,108 @@ let markerLayoutTimeouts = [];
 let clockResizeObserver = null;
 let ghostIcon = null;
 let lastProgressSignature = '';
+let scheduleTypeOverride = null;
+let toastTimeout = null;
+let plannerPanelOpen = false;
+
+function getTodayScheduleType(date = new Date()) {
+    const day = date.getDay();
+    return day === 0 || day === 6 ? 'weekend' : 'weekday';
+}
+
+function getActiveScheduleType(date = new Date()) {
+    return scheduleTypeOverride || getTodayScheduleType(date);
+}
+
+function createEmptyScheduleSet() {
+    return {
+        weekday: { am: {}, pm: {} },
+        weekend: { am: {}, pm: {} }
+    };
+}
+
+function normalizeClockActivities(rawActivities) {
+    const normalized = createEmptyScheduleSet();
+    const source = rawActivities && typeof rawActivities === 'object' ? rawActivities : {};
+
+    if ('weekday' in source || 'weekend' in source) {
+        ['weekday', 'weekend'].forEach(scheduleType => {
+            const scheduleSource = source[scheduleType] || {};
+            normalized[scheduleType].am = { ...(scheduleSource.am || {}) };
+            normalized[scheduleType].pm = { ...(scheduleSource.pm || {}) };
+        });
+        return normalized;
+    }
+
+    const legacyAm = { ...(source.am || {}) };
+    const legacyPm = { ...(source.pm || {}) };
+    normalized.weekday.am = { ...legacyAm };
+    normalized.weekday.pm = { ...legacyPm };
+    normalized.weekend.am = { ...legacyAm };
+    normalized.weekend.pm = { ...legacyPm };
+    return normalized;
+}
+
+function readClockActivities() {
+    const raw = JSON.parse(localStorage.getItem('clockActivities') || '{}');
+    const normalized = normalizeClockActivities(raw);
+    localStorage.setItem('clockActivities', JSON.stringify(normalized));
+    return normalized;
+}
+
+function writeClockActivities(activitiesData) {
+    localStorage.setItem('clockActivities', JSON.stringify(activitiesData));
+}
+
+function formatDigitalTime(date) {
+    const hours24 = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    const hours12 = (hours24 % 12) || 12;
+    return `${hours12}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${period}`;
+}
+
+function updateDigitalClock(now) {
+    const digitalTime = document.querySelector('.digital-time');
+    const digitalPlan = document.querySelector('.digital-plan');
+    if (digitalTime) {
+        digitalTime.textContent = formatDigitalTime(now);
+    }
+    if (digitalPlan) {
+        const scheduleType = getActiveScheduleType(now);
+        digitalPlan.textContent = scheduleType === 'weekday' ? 'Weekday Plan' : 'Weekend Plan';
+    }
+}
 
 function getActivityAsset(activity) {
     return activities[activity]?.src || '';
+}
+
+function getDisplayPeriod() {
+    return editingPeriod || currentPeriod;
+}
+
+function formatSlotLabel(hourValue, period = getDisplayPeriod()) {
+    const normalized = Number(hourValue);
+    if (Number.isNaN(normalized)) return String(hourValue);
+
+    let displayHour = Math.floor(normalized % 12);
+    const minutes = normalized % 1 === 0.5 ? '30' : '00';
+
+    if (period === 'am') {
+        if (Math.floor(normalized) === 12) {
+            displayHour = 0;
+        }
+    } else {
+        if (Math.floor(normalized) !== 12) {
+            displayHour += 12;
+        } else {
+            displayHour = 12;
+        }
+    }
+
+    return `${String(displayHour).padStart(2, '0')}:${minutes}`;
 }
 
 function applyActivityToImage(img, activity) {
@@ -52,6 +151,211 @@ function applyActivityToImage(img, activity) {
     img.src = asset;
     img.alt = activities[activity]?.label || activity;
     img.dataset.activity = activity;
+}
+
+function isEditing() {
+    return editingPeriod !== null;
+}
+
+function announce(message) {
+    const liveRegion = document.getElementById('liveRegion');
+    if (liveRegion) {
+        liveRegion.textContent = message;
+    }
+}
+
+function showToast(message) {
+    const toast = document.getElementById('liveToast');
+    if (!toast) return;
+
+    toast.textContent = message;
+    toast.classList.add('visible');
+    announce(message);
+
+    if (toastTimeout) {
+        clearTimeout(toastTimeout);
+    }
+
+    toastTimeout = setTimeout(() => {
+        toast.classList.remove('visible');
+    }, 1800);
+}
+
+function getSelectedActivityLabel() {
+    return selectedActivity ? activities[selectedActivity]?.label || selectedActivity : 'None';
+}
+
+function updateSelectionUI() {
+    const selectionChip = document.getElementById('selectionChip');
+    const selectionLabel = document.getElementById('selectionLabel');
+    const isEditMode = isEditing();
+
+    document.querySelectorAll('.icon-btn').forEach(btn => {
+        btn.classList.toggle('selected', isEditMode && btn.dataset.activity === selectedActivity);
+    });
+
+    if (selectionLabel) {
+        selectionLabel.textContent = getSelectedActivityLabel();
+    }
+
+    if (selectionChip) {
+        selectionChip.hidden = !isEditMode;
+    }
+
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.classList.toggle('selected-slot', isEditMode && !!selectedActivity);
+    });
+}
+
+function setSelectedActivity(activity) {
+    selectedActivity = selectedActivity === activity ? null : activity;
+    updateSelectionUI();
+}
+
+function getActivePeriodLabel() {
+    return currentPeriod === 'am' ? 'AM' : 'PM';
+}
+
+function getActiveScheduleLabel() {
+    return getActiveScheduleType() === 'weekday' ? 'Weekday' : 'Weekend';
+}
+
+function resetViewToCurrentTime() {
+    const now = new Date();
+    currentPeriod = now.getHours() >= 12 ? 'pm' : 'am';
+    scheduleTypeOverride = null;
+}
+
+function updateGuidanceUI() {
+    const modeTitle = document.getElementById('modeTitle');
+    const helperCopy = document.getElementById('helperCopy');
+    const editToggleBtn = document.getElementById('editToggleBtn');
+    const clearPlanBtn = document.getElementById('clearPlanBtn');
+    const plannerHandle = document.getElementById('plannerHandle');
+    const plannerPanel = document.getElementById('plannerPanel');
+    const iconToolbar = document.querySelector('.icon-toolbar');
+    const isEditMode = isEditing();
+    const periodLabel = getActivePeriodLabel();
+    const scheduleLabel = getActiveScheduleLabel();
+
+    if (modeTitle) {
+        modeTitle.textContent = isEditMode
+            ? `Editing ${scheduleLabel} ${periodLabel}`
+            : `${scheduleLabel} ${periodLabel}`;
+    }
+
+    if (helperCopy) {
+        helperCopy.textContent = isEditMode
+            ? 'Pick an activity from the tray, then click or drag it onto a time slot. Press the planning button again when you are done.'
+            : 'Watch the live clock and talk about which activity belongs to this part of the day.';
+    }
+
+    if (editToggleBtn) {
+        editToggleBtn.dataset.mode = isEditMode ? 'editing' : 'viewing';
+        editToggleBtn.setAttribute('aria-pressed', String(isEditMode));
+        editToggleBtn.querySelector('.edit-toggle-label').textContent = isEditMode ? 'Finish planning mode' : 'Open planning mode';
+        editToggleBtn.querySelector('.edit-toggle-meta').textContent = isEditMode ? `${scheduleLabel} ${periodLabel} is being edited` : 'For caregivers';
+    }
+
+    if (clearPlanBtn) {
+        clearPlanBtn.hidden = !isEditMode;
+    }
+
+    if (plannerHandle) {
+        plannerHandle.setAttribute('aria-expanded', String(plannerPanelOpen));
+        plannerHandle.textContent = plannerPanelOpen ? 'Hide planning tools' : 'Planning tools';
+    }
+
+    if (plannerPanel) {
+        plannerPanel.hidden = !plannerPanelOpen;
+    }
+
+    if (iconToolbar) {
+        iconToolbar.hidden = !isEditMode;
+    }
+
+    updateSelectionUI();
+}
+
+function setPlannerPanelOpen(nextOpen) {
+    plannerPanelOpen = nextOpen;
+    updateGuidanceUI();
+}
+
+function updateDropZoneMetadata() {
+    document.querySelectorAll('.marker').forEach(marker => {
+        const zone = marker.querySelector('.drop-zone');
+        if (!zone) return;
+
+        const hour = marker.dataset.hour;
+        const label = formatSlotLabel(hour);
+        const currentImage = zone.querySelector('img');
+        const assignedActivity = currentImage?.dataset.activity;
+        const assignmentLabel = assignedActivity ? activities[assignedActivity]?.label || assignedActivity : 'empty';
+
+        zone.dataset.hour = hour;
+        zone.dataset.label = label;
+        zone.tabIndex = 0;
+        zone.setAttribute('role', 'button');
+        zone.setAttribute(
+            'aria-label',
+            `${label} slot, ${assignmentLabel}${isEditing() ? '. Press Enter to place selected activity.' : ''}`
+        );
+    });
+}
+
+function placeActivityInZone(zone, activity, source = 'selection') {
+    if (!zone || !activity || !isEditing()) return;
+
+    const existingImg = zone.querySelector('img');
+    const slotLabel = zone.dataset.label || formatSlotLabel(zone.dataset.hour);
+    if (existingImg) {
+        if (existingImg.dataset.activity === activity && source !== 'move') {
+            zone.removeChild(existingImg);
+            showToast(`${activities[activity]?.label || activity} removed from ${slotLabel}.`);
+        } else {
+            applyActivityToImage(existingImg, activity);
+            showToast(`${activities[activity]?.label || activity} moved to ${slotLabel}.`);
+        }
+    } else {
+        const img = document.createElement('img');
+        applyActivityToImage(img, activity);
+        zone.appendChild(img);
+        showToast(`${activities[activity]?.label || activity} set for ${slotLabel}.`);
+    }
+
+    saveActivities();
+    makeDropZoneIconsDraggable();
+    updateDropZoneMetadata();
+}
+
+function clearZoneActivity(zone) {
+    if (!zone || !isEditing()) return;
+
+    const img = zone.querySelector('img');
+    if (!img) return;
+
+    const activityLabel = activities[img.dataset.activity]?.label || img.dataset.activity;
+    const slotLabel = zone.dataset.label || formatSlotLabel(zone.dataset.hour);
+    zone.removeChild(img);
+    saveActivities();
+    updateDropZoneMetadata();
+    showToast(`${activityLabel} cleared from ${slotLabel}.`);
+}
+
+function clearCurrentPlan() {
+    if (!isEditing()) return;
+
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        const img = zone.querySelector('img');
+        if (img) {
+            zone.removeChild(img);
+        }
+    });
+
+    saveActivities();
+    updateDropZoneMetadata();
+    showToast(`${getActiveScheduleLabel()} ${getActivePeriodLabel()} plan cleared.`);
 }
 
 function initProgressRings() {
@@ -193,6 +497,7 @@ function updateClock() {
     if (minuteHand) minuteHand.style.transform = `rotate(${minuteAngle}deg) translateZ(0)`;
     if (secondHand) secondHand.style.transform = `rotate(${secondAngle}deg) translateZ(0)`;
 
+    updateDigitalClock(now);
     updateHourProgress(now);
 
     // Request next frame for smooth animation
@@ -213,6 +518,7 @@ function updateTimeGradient(hour) {
 function init() {
     scheduleClockLayout();
     initPeriodSwitch();
+    initEditMode();
     loadActivities();
     initDragAndDrop();
     
@@ -240,6 +546,29 @@ function init() {
             scheduleClockLayout();
         });
         clockResizeObserver.observe(clockContainer);
+    }
+
+    const clearPlanBtn = document.getElementById('clearPlanBtn');
+    if (clearPlanBtn) {
+        clearPlanBtn.addEventListener('click', clearCurrentPlan);
+    }
+
+    const plannerHandle = document.getElementById('plannerHandle');
+    if (plannerHandle) {
+        plannerHandle.addEventListener('click', () => {
+            const nextOpen = !plannerPanelOpen;
+
+            if (!nextOpen && isEditing()) {
+                editingPeriod = null;
+                selectedActivity = null;
+                resetViewToCurrentTime();
+                showToast('Planning mode closed.');
+            }
+
+            setPlannerPanelOpen(nextOpen);
+            updatePeriodUI();
+            loadActivities();
+        });
     }
 }
 
@@ -339,14 +668,9 @@ function makeDropZoneIconsDraggable() {
                         touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
                         droppedInValidZone = true;
                         if (dropZone !== zone) {
-                            // Move image to new drop zone
-                            const activity = img.dataset.activity;
-                            const existingImg = dropZone.querySelector('img');
-                            if (existingImg) {
-                                applyActivityToImage(existingImg, activity);
+                            placeActivityInZone(dropZone, img.dataset.activity, 'move');
+                            if (zone.contains(img)) {
                                 zone.removeChild(img);
-                            } else {
-                                dropZone.appendChild(img);
                             }
                         }
                     }
@@ -354,11 +678,15 @@ function makeDropZoneIconsDraggable() {
                 
                 // Remove if not dropped in a valid zone
                 if (!droppedInValidZone) {
-                    zone.removeChild(img);
+                    if (zone.contains(img)) {
+                        zone.removeChild(img);
+                    }
+                    showToast(`${activities[img.dataset.activity]?.label || img.dataset.activity} removed from ${zone.dataset.label || formatSlotLabel(zone.dataset.hour)}.`);
                 }
                 
                 saveActivities();
                 makeDropZoneIconsDraggable();
+                updateDropZoneMetadata();
             };
             
             // Mouse drag handlers
@@ -401,8 +729,12 @@ function makeDropZoneIconsDraggable() {
                 });
                 
                 if (!droppedInValidZone) {
-                    zone.removeChild(img);
+                    if (zone.contains(img)) {
+                        zone.removeChild(img);
+                    }
                     saveActivities();
+                    updateDropZoneMetadata();
+                    showToast(`${activities[img.dataset.activity]?.label || img.dataset.activity} removed from ${zone.dataset.label || formatSlotLabel(zone.dataset.hour)}.`);
                 }
             };
             
@@ -418,7 +750,10 @@ function makeDropZoneIconsDraggable() {
 
 // Save and load activities
 function saveActivities() {
-    const activities = {};
+    const storedActivities = readClockActivities();
+    const scheduleType = getActiveScheduleType();
+    const updatedPeriods = { am: {}, pm: {} };
+
     document.querySelectorAll('.drop-zone').forEach(zone => {
         const marker = zone.closest('.marker');
         if (!marker) return;
@@ -428,27 +763,20 @@ function saveActivities() {
         if (img) {
             // Save to the editing period if set, otherwise use current period
             const savePeriod = editingPeriod || currentPeriod;
-            if (!activities[savePeriod]) {
-                activities[savePeriod] = {};
-            }
-            activities[savePeriod][hour] = img.dataset.activity;
+            updatedPeriods[savePeriod][hour] = img.dataset.activity;
         }
     });
-    
-    // Merge with existing activities from other period
-    const existingActivities = JSON.parse(localStorage.getItem('clockActivities') || '{}');
-    const otherPeriod = (editingPeriod || currentPeriod) === 'am' ? 'pm' : 'am';
-    if (existingActivities[otherPeriod]) {
-        activities[otherPeriod] = existingActivities[otherPeriod];
-    }
-    
-    localStorage.setItem('clockActivities', JSON.stringify(activities));
+
+    storedActivities[scheduleType].am = updatedPeriods.am;
+    storedActivities[scheduleType].pm = updatedPeriods.pm;
+    writeClockActivities(storedActivities);
 }
 
 function loadActivities() {
-    const savedActivities = JSON.parse(localStorage.getItem('clockActivities') || '{}');
+    const savedActivities = readClockActivities();
+    const scheduleType = getActiveScheduleType();
     // Load activities for the editing period if set, otherwise use current period
-    const periodActivities = savedActivities[editingPeriod || currentPeriod] || {};
+    const periodActivities = savedActivities[scheduleType][editingPeriod || currentPeriod] || {};
     
     // Clear all drop zones first
     document.querySelectorAll('.drop-zone').forEach(zone => {
@@ -457,7 +785,7 @@ function loadActivities() {
     
     // Load activities for current period
     Object.entries(periodActivities).forEach(([hour, activity]) => {
-        const marker = document.querySelector(`.marker-${hour}`);
+        const marker = document.querySelector(`.marker[data-hour="${hour}"]`);
         if (!marker) return;
         
         const dropZone = marker.querySelector('.drop-zone');
@@ -471,7 +799,10 @@ function loadActivities() {
     
     initProgressRings();
     makeDropZoneIconsDraggable();
+    updateDropZoneMetadata();
     updateHourProgress(new Date());
+    updateScheduleUI();
+    updateGuidanceUI();
 }
 
 function clearScheduledClockLayout() {
@@ -503,21 +834,35 @@ function scheduleClockLayout() {
 function positionClockMarkers() {
     const markers = document.querySelectorAll('.marker');
     const clockContainer = document.querySelector('.clock-container');
+    const clockFace = document.querySelector('.clock-face');
 
     if (!clockContainer || markers.length === 0) return;
 
     const containerWidth = clockContainer.offsetWidth;
     const containerHeight = clockContainer.offsetHeight;
     const sampleMarker = markers[0];
-    const markerSize = sampleMarker ? sampleMarker.offsetWidth || 60 : 60;
+    const sampleDropZone = sampleMarker ? sampleMarker.querySelector('.drop-zone') : null;
+    const markerSize = sampleDropZone
+        ? sampleDropZone.offsetWidth || 54
+        : sampleMarker
+            ? sampleMarker.offsetWidth || 54
+            : 54;
 
     // Keep markers inside the clock edge across viewport changes.
     const edgeDistance = Math.max(18, Math.min(containerWidth, containerHeight) * 0.05);
-    const markerRadius = Math.min(containerWidth, containerHeight) / 2 - edgeDistance - markerSize / 2;
+    const outerRadius = Math.min(containerWidth, containerHeight) / 2 - edgeDistance - markerSize / 2;
+    const innerFaceRadius = clockFace
+        ? Math.min(clockFace.offsetWidth, clockFace.offsetHeight) / 2
+        : Math.min(containerWidth, containerHeight) * 0.33;
+    const innerRadiusPadding = Math.max(10, markerSize * 0.18);
+    const halfHourRadius = Math.max(markerSize / 2, innerFaceRadius - markerSize / 2 - innerRadiusPadding);
 
     markers.forEach(marker => {
-        const hour = parseInt(marker.dataset.hour, 10);
+        const hour = parseFloat(marker.dataset.hour);
         const angle = ((hour % 12) / 12) * 2 * Math.PI - Math.PI / 2;
+        const markerRadius = marker.classList.contains('marker-half')
+            ? halfHourRadius
+            : outerRadius;
         const centerX = containerWidth / 2;
         const centerY = containerHeight / 2;
         const x = centerX + markerRadius * Math.cos(angle);
@@ -532,14 +877,22 @@ function positionClockMarkers() {
 function initDragAndDrop() {
     const iconBtns = document.querySelectorAll('.icon-btn');
     const dropZones = document.querySelectorAll('.drop-zone');
-    const clockContainer = document.querySelector('.clock-container');
     
     // Enable drag on toolbar icons
     iconBtns.forEach(btn => {
         btn.draggable = true;
+
+        btn.addEventListener('click', () => {
+            if (!isEditing()) return;
+            setSelectedActivity(btn.dataset.activity);
+        });
         
         // Mouse drag handlers
         btn.addEventListener('dragstart', (e) => {
+            if (!isEditing()) {
+                e.preventDefault();
+                return;
+            }
             e.dataTransfer.effectAllowed = 'move';
             const activity = btn.dataset.activity;
             e.dataTransfer.setData('text/plain', activity);
@@ -559,31 +912,58 @@ function initDragAndDrop() {
         let touchStartX = 0;
         let touchStartY = 0;
         let draggingTouch = false;
+        let pendingTouch = false;
+        let touchScrolling = false;
         let draggedImg = null;
         
         btn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+            if (!isEditing()) {
+                return;
+            }
             const touch = e.touches[0];
             touchStartX = touch.clientX;
             touchStartY = touch.clientY;
-            draggingTouch = true;
-            
-            // Create ghost image
-            const img = btn.querySelector('img');
-            draggedImg = img.cloneNode(true);
-            draggedImg.style.position = 'fixed';
-            draggedImg.style.opacity = '0.6';
-            draggedImg.style.pointerEvents = 'none';
-            document.body.appendChild(draggedImg);
-            
-            btn.classList.add('dragging');
+            pendingTouch = true;
+            draggingTouch = false;
+            touchScrolling = false;
         });
         
         btn.addEventListener('touchmove', (e) => {
-            if (!draggingTouch) return;
-            e.preventDefault();
-            
             const touch = e.touches[0];
+
+            if (pendingTouch && !draggingTouch) {
+                const deltaX = touch.clientX - touchStartX;
+                const deltaY = touch.clientY - touchStartY;
+                const absX = Math.abs(deltaX);
+                const absY = Math.abs(deltaY);
+
+                if (absX < 8 && absY < 8) {
+                    return;
+                }
+
+                if (absX > absY) {
+                    touchScrolling = true;
+                    pendingTouch = false;
+                    return;
+                }
+
+                draggingTouch = true;
+                pendingTouch = false;
+
+                const img = btn.querySelector('img');
+                draggedImg = img.cloneNode(true);
+                draggedImg.style.position = 'fixed';
+                draggedImg.style.opacity = '0.6';
+                draggedImg.style.pointerEvents = 'none';
+                document.body.appendChild(draggedImg);
+
+                btn.classList.add('dragging');
+            }
+
+            if (!draggingTouch) return;
+
+            e.preventDefault();
+
             if (draggedImg) {
                 draggedImg.style.left = (touch.clientX - 25) + 'px';
                 draggedImg.style.top = (touch.clientY - 25) + 'px';
@@ -602,8 +982,24 @@ function initDragAndDrop() {
         });
         
         btn.addEventListener('touchend', (e) => {
+            if (!isEditing()) {
+                return;
+            }
+
+            if (touchScrolling) {
+                touchScrolling = false;
+                pendingTouch = false;
+                return;
+            }
+
+            if (!draggingTouch) {
+                pendingTouch = false;
+                return;
+            }
+
             e.preventDefault();
             draggingTouch = false;
+            pendingTouch = false;
             btn.classList.remove('dragging');
             
             if (draggedImg) {
@@ -619,21 +1015,7 @@ function initDragAndDrop() {
                 const rect = zone.getBoundingClientRect();
                 if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
                     touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-                    const activity = btn.dataset.activity;
-                    const existingImg = zone.querySelector('img');
-                    if (existingImg) {
-                        if (existingImg.dataset.activity === activity) {
-                            zone.removeChild(existingImg);
-                        } else {
-                            applyActivityToImage(existingImg, activity);
-                        }
-                    } else {
-                        const img = document.createElement('img');
-                        applyActivityToImage(img, activity);
-                        zone.appendChild(img);
-                    }
-                    saveActivities();
-                    makeDropZoneIconsDraggable();
+                    placeActivityInZone(zone, btn.dataset.activity, 'toolbar');
                 }
             });
         });
@@ -641,12 +1023,33 @@ function initDragAndDrop() {
     
     // Handle drop zones
     dropZones.forEach(zone => {
+        zone.addEventListener('click', () => {
+            if (!isEditing() || !selectedActivity) return;
+            placeActivityInZone(zone, selectedActivity, 'selection');
+        });
+
+        zone.addEventListener('keydown', (e) => {
+            if (!isEditing()) return;
+
+            if ((e.key === 'Enter' || e.key === ' ') && selectedActivity) {
+                e.preventDefault();
+                placeActivityInZone(zone, selectedActivity, 'selection');
+            }
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                clearZoneActivity(zone);
+            }
+        });
+
         zone.addEventListener('dragenter', (e) => {
+            if (!isEditing()) return;
             e.preventDefault();
             zone.classList.add('drag-over');
         });
         
         zone.addEventListener('dragover', (e) => {
+            if (!isEditing()) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         });
@@ -656,6 +1059,7 @@ function initDragAndDrop() {
         });
         
         zone.addEventListener('drop', (e) => {
+            if (!isEditing()) return;
             e.preventDefault();
             zone.classList.remove('drag-over');
             
@@ -663,22 +1067,8 @@ function initDragAndDrop() {
             const source = e.dataTransfer.getData('source');
             
             if (!activity) return;
-            
-            const existingImg = zone.querySelector('img');
-            if (existingImg) {
-                if (existingImg.dataset.activity === activity && source === 'toolbar') {
-                    zone.removeChild(existingImg);
-                } else {
-                    applyActivityToImage(existingImg, activity);
-                }
-            } else {
-                const img = document.createElement('img');
-                applyActivityToImage(img, activity);
-                zone.appendChild(img);
-            }
-            
-            saveActivities();
-            makeDropZoneIconsDraggable();
+
+            placeActivityInZone(zone, activity, source === 'clock' ? 'move' : 'toolbar');
         });
     });
     
@@ -712,19 +1102,58 @@ function initPeriodSwitch() {
     periodBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const period = btn.dataset.period;
-            
-            // Toggle editing mode directly without password
-            if (editingPeriod === period) {
-                editingPeriod = null;
-            } else {
+            currentPeriod = period;
+
+            if (isEditing()) {
                 editingPeriod = period;
             }
-            
-            // Update UI
+
             updatePeriodUI();
             loadActivities();
         });
     });
+}
+
+function initEditMode() {
+    const editToggleBtn = document.getElementById('editToggleBtn');
+    if (!editToggleBtn) return;
+
+    editToggleBtn.addEventListener('click', () => {
+        if (isEditing()) {
+            editingPeriod = null;
+            selectedActivity = null;
+            resetViewToCurrentTime();
+            setPlannerPanelOpen(false);
+            showToast('Planning mode closed.');
+        } else {
+            editingPeriod = currentPeriod;
+            setPlannerPanelOpen(true);
+            showToast(`Planning mode opened for ${getActiveScheduleLabel()} ${getActivePeriodLabel()}.`);
+        }
+
+        updatePeriodUI();
+        loadActivities();
+    });
+}
+
+function initScheduleSwitch() {
+    const scheduleButtons = document.querySelectorAll('.schedule-btn');
+    scheduleButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            scheduleTypeOverride = btn.dataset.schedule;
+            updateScheduleUI();
+            loadActivities();
+        });
+    });
+}
+
+function updateScheduleUI() {
+    const activeScheduleType = getActiveScheduleType();
+    document.querySelectorAll('.schedule-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.schedule === activeScheduleType);
+    });
+    document.body.dataset.scheduleType = activeScheduleType;
+    updateGuidanceUI();
 }
 
 function updatePeriodUI() {
@@ -734,15 +1163,14 @@ function updatePeriodUI() {
     periodBtns.forEach(btn => {
         const period = btn.dataset.period;
         btn.classList.toggle('active', period === currentPeriod);
-        
-        // Update editing indicator
-        btn.dataset.editing = (period === editingPeriod).toString();
+        btn.setAttribute('aria-pressed', String(period === currentPeriod));
     });
     
     // Update body attributes for styling
     document.body.dataset.period = currentPeriod;
-    document.body.dataset.editing = editingPeriod !== null ? 'true' : 'false';
-    
+    document.body.dataset.editing = isEditing() ? 'true' : 'false';
+    updateScheduleUI();
+    updateGuidanceUI();
 }
 
 function checkAndUpdatePeriod() {
@@ -756,7 +1184,14 @@ function checkAndUpdatePeriod() {
         updatePeriodUI();
         loadActivities();
     }
+
+    if (!scheduleTypeOverride) {
+        updateScheduleUI();
+    }
 }
 
 // Start when page loads
-window.addEventListener('load', init);
+window.addEventListener('load', () => {
+    initScheduleSwitch();
+    init();
+});
